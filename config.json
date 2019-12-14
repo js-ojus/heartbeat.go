@@ -1,0 +1,24 @@
+{
+    "sender": {
+        "server": "<smtp server>",
+        "port": -1,
+        "username": "<address>",
+        "password": "<secret>",
+        "fromName": "Heartbeat Service",
+        "fromAddress": "<address>"
+    },
+    "heartbeatSeconds": 600,
+    "resolverAddress": "8.8.8.8",
+    "requestHeadOnly": true,
+    "sites": [
+        {
+            "url": "<url>",
+            "isAddress": false,
+            "timeoutSeconds": 5,
+            "recipients": [
+                "a@example.com",
+                "b@example.com"
+            ]
+        }
+    ]
+}
