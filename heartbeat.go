@@ -28,7 +28,7 @@ func (m *Monitor) isSiteUp(url string, timeout time.Duration) error {
 		res, err = cl.Get(url)
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("HTTP error : %w", err)
 	}
 
 	switch {
@@ -139,7 +139,7 @@ func main() {
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, os.Interrupt, os.Kill)
 		<-sig
-		fmt.Printf("Shutting down heartbeat checker ...")
+		fmt.Println("Shutting down heartbeat monitor ...")
 
 		close(ch)
 	}(done)
@@ -147,6 +147,7 @@ func main() {
 	ticker := time.NewTicker(time.Duration(m.conf.HeartbeatSeconds) * time.Second)
 	defer ticker.Stop()
 
+	fmt.Println("Starting heartbeat monitor ...")
 	m.processSites()
 outer:
 	for {
