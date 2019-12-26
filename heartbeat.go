@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,20 +17,55 @@ import (
 // isSiteUp makes a request to the given URL, and reports a non-nil
 // error in case the server at the URL does not respond within the
 // timeout duration.
-func (m *Monitor) isSiteUp(url string, timeout time.Duration) error {
+func (m *Monitor) isSiteUp(site *Site) error {
+	switch site.Protocol {
+	case "http", "https":
+		return m.testHTTP(site)
+
+	default:
+		return fmt.Errorf("unhandled protocol: %s", site.Protocol)
+	}
+}
+
+// testHTTP makes a  HTTP(S) request to the given server, as per the
+// given specification.
+func (m *Monitor) testHTTP(site *Site) error {
 	var res *http.Response
 	var err error
+
 	cl := &http.Client{
-		Timeout: timeout * time.Second,
+		Timeout: time.Duration(site.TimeoutSeconds) * time.Second,
 	}
-	if m.conf.RequestHeadOnly {
-		res, err = cl.Head(url)
-	} else {
-		res, err = cl.Get(url)
+
+	// Construct the full URL.
+	urlFmt := "%s://%s" // protocol://server
+	urlParams := []interface{}{site.Protocol, site.Server}
+	if site.HTTPConfig.Port != 0 {
+		urlFmt += ":%d"
+		urlParams = append(urlParams, site.HTTPConfig.Port)
 	}
+	if site.HTTPConfig.URL != "" {
+		urlFmt += "/%s"
+		urlParams = append(urlParams, site.HTTPConfig.URL)
+	}
+	fullURL := fmt.Sprintf(urlFmt, urlParams...)
+
+	// Make the request based on the specified method.
+	switch site.HTTPConfig.Method {
+	case "HEAD":
+		res, err = cl.Head(fullURL)
+
+	case "GET":
+		res, err = cl.Get(fullURL)
+
+	case "POST":
+		res, err = cl.Post(fullURL, "", bytes.NewReader(site.HTTPConfig.Body))
+	}
+
 	if err != nil {
 		return fmt.Errorf("HTTP error : %w", err)
 	}
+	res.Body.Close()
 
 	switch {
 	case res.StatusCode == 200:
@@ -55,8 +91,7 @@ func (m *Monitor) resolveServer(host string) error {
 // SMTP configuration given in the configuration.
 func (m *Monitor) sendAlert(recipients []string, server string, serr error) error {
 	auth := LoginAuth(m.conf.Sender.Username, m.conf.Sender.Password)
-	fstr := "From: ISB Heartbeat Monitor\r\n" +
-		"Subject: ALERT : Server down : %s\r\n" +
+	fstr := "Subject: ALERT : Server down : %s\r\n" +
 		"\r\n" +
 		"ERROR : Could not get heartbeat!\r\n" +
 		"\r\n" +
@@ -75,11 +110,11 @@ func (m *Monitor) sendAlert(recipients []string, server string, serr error) erro
 // processSites is the main loop of the heartbeat checker.
 func (m *Monitor) processSites() {
 	for _, site := range m.conf.Sites {
-		// Resolve the URL, if it not an address.
-		if !site.IsAddress {
-			err := m.resolveServer(site.URL)
+		// Resolve the server, if it not an address.
+		if ip := net.ParseIP(site.Server); ip == nil {
+			err := m.resolveServer(site.Server)
 			if err != nil {
-				derr := m.sendAlert(site.Recipients, site.URL, err)
+				derr := m.sendAlert(site.Recipients, site.Server, err)
 				if derr != nil {
 					fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
 				}
@@ -88,9 +123,9 @@ func (m *Monitor) processSites() {
 		}
 
 		// Check for response.
-		err := m.isSiteUp(site.URL, time.Duration(site.TimeoutSeconds)*time.Second)
+		err := m.isSiteUp(&site)
 		if err != nil {
-			derr := m.sendAlert(site.Recipients, site.URL, err)
+			derr := m.sendAlert(site.Recipients, site.Server, err)
 			if derr != nil {
 				fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
 			}
@@ -119,7 +154,6 @@ func main() {
 
 	// Set the outgoing server and sender's name.
 	m.mailServer = fmt.Sprintf("%s:%d", m.conf.Sender.Server, m.conf.Sender.Port)
-	m.senderName = fmt.Sprintf("%s <%s>", m.conf.Sender.FromName, m.conf.Sender.FromAddress)
 
 	// Set the resolver dialer.
 	m.resolver = &net.Resolver{

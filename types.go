@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"net/smtp"
@@ -8,20 +9,27 @@ import (
 
 // SenderConfig specifies the configuration to use for sending alerts.
 type SenderConfig struct {
-	Server      string `json:"server"`
-	Port        int    `json:"port"`
-	Username    string `json:"username"`
-	Password    string `json:"password"`
-	FromName    string `json:"fromName"`
-	FromAddress string `json:"fromAddress"`
+	Server   string `json:"server"`
+	Port     int    `json:"port"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // Site specifies a site whose heartbeat has to be monitored.
 type Site struct {
-	URL            string   `json:"url"`
-	IsAddress      bool     `json:"isAddress"`
-	TimeoutSeconds int      `json:"timeoutSeconds"`
-	Recipients     []string `json:"recipients"`
+	Server         string     `json:"server"`
+	Protocol       string     `json:"protocol"`
+	HTTPConfig     HTTPConfig `json:"http"`
+	TimeoutSeconds int        `json:"timeoutSeconds"`
+	Recipients     []string   `json:"recipients"`
+}
+
+// HTTPConfig specifies configuration for `http` and `https` services.
+type HTTPConfig struct {
+	Port   int             `json:"port"`
+	URL    string          `json:"url"`
+	Method string          `json:"method"`
+	Body   json.RawMessage `json:"body"`
 }
 
 // Config holds the monitor's configuration.
@@ -29,7 +37,6 @@ type Config struct {
 	Sender           SenderConfig `json:"sender"`
 	HeartbeatSeconds int          `json:"heartbeatSeconds"`
 	ResolverAddress  string       `json:"resolverAddress"`
-	RequestHeadOnly  bool         `json:"requestHeadOnly"`
 	Sites            []Site       `json:"sites"`
 }
 
@@ -38,7 +45,6 @@ type Config struct {
 type Monitor struct {
 	conf       *Config
 	mailServer string
-	senderName string
 	resolver   *net.Resolver
 }
 
