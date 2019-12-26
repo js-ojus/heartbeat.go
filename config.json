@@ -1,0 +1,27 @@
+{
+    "sender": {
+        "server": "<smtp server>",
+        "port": -1,
+        "username": "<username>",
+        "password": "<secret>"
+    },
+    "heartbeatSeconds": 600,
+    "resolverAddress": "8.8.8.8",
+    "sites": [
+        {
+            "server": "www.example.com",
+            "protocol": "https",
+            "http": {
+                "port": 443,
+                "url": "<url>",
+                "method": "POST",
+                "body": "<unescaped body>"
+            },
+            "timeoutSeconds": 5,
+            "recipients": [
+                "a@example.com",
+                "b@example.com"
+            ]
+        }
+    ]
+}
