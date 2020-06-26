@@ -9,7 +9,7 @@ import (
 
 // testHTTP makes a  HTTP(S) request to the given server, as per the
 // given specification.
-func (m *Monitor) testHTTP(site *Site) error {
+func (m *Monitor) checkHTTP(site *Site) error {
 	var res *http.Response
 	var err error
 

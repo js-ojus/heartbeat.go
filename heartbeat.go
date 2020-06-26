@@ -18,7 +18,7 @@ import (
 func (m *Monitor) isServerUp(site *Site) error {
 	switch site.Protocol {
 	case "http", "https":
-		return m.testHTTP(site)
+		return m.checkHTTP(site)
 
 	default:
 		return fmt.Errorf("unhandled protocol: %s", site.Protocol)
