@@ -61,28 +61,37 @@ func (m *Monitor) sendAlert(recipients []string, server string, serr error) erro
 
 // processSites is the main loop of the heartbeat checker.
 func (m *Monitor) processSites() {
+	l := len(m.conf.Sites)
+	ch := make(chan bool)
+
 	for _, site := range m.conf.Sites {
-		// Resolve the server, if it not an address.
-		if ip := net.ParseIP(site.Server); ip == nil {
-			err := m.resolveServer(site.Server)
+		go func(site Site, ch chan bool) {
+			// Resolve the server, if it not an address.
+			if ip := net.ParseIP(site.Server); ip == nil {
+				err := m.resolveServer(site.Server)
+				if err != nil {
+					derr := m.sendAlert(site.Recipients, site.Server, err)
+					if derr != nil {
+						fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
+					}
+				}
+			}
+
+			// Check for response.
+			err := m.isServerUp(&site)
 			if err != nil {
 				derr := m.sendAlert(site.Recipients, site.Server, err)
 				if derr != nil {
 					fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
 				}
-				continue
 			}
-		}
 
-		// Check for response.
-		err := m.isServerUp(&site)
-		if err != nil {
-			derr := m.sendAlert(site.Recipients, site.Server, err)
-			if derr != nil {
-				fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
-			}
-			continue
-		}
+			ch <- true
+		}(site, ch)
+	}
+
+	for i := 0; i < l; i++ {
+		<-ch
 	}
 }
 
