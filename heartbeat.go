@@ -20,6 +20,9 @@ func (m *Monitor) isServerUp(site *Site) error {
 	case "http", "https":
 		return m.checkHTTP(site)
 
+	case "mysql":
+		return m.checkMySQL(site)
+
 	default:
 		return fmt.Errorf("unhandled protocol: %s", site.Protocol)
 	}
@@ -132,11 +135,13 @@ func main() {
 
 	fmt.Println("Starting heartbeat monitor ...")
 	m.processSites()
+	fmt.Print(".")
 outer:
 	for {
 		select {
 		case <-ticker.C:
 			m.processSites()
+			fmt.Print(".")
 
 		case <-done:
 			break outer

@@ -2,19 +2,24 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"time"
 )
 
-// testHTTP makes a  HTTP(S) request to the given server, as per the
+// checkHTTP makes a  HTTP(S) request to the given server, as per the
 // given specification.
 func (m *Monitor) checkHTTP(site *Site) error {
 	var res *http.Response
 	var err error
 
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
 	cl := &http.Client{
-		Timeout: time.Duration(site.TimeoutSeconds) * time.Second,
+		Transport: tr,
+		Timeout:   time.Duration(site.TimeoutSeconds) * time.Second,
 	}
 
 	// Construct the full URL.
