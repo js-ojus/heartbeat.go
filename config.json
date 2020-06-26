@@ -22,6 +22,20 @@
                 "a@example.com",
                 "b@example.com"
             ]
+        },
+        {
+            "server": "a.b.c.d",
+            "protocol": "mysql",
+            "mysql": {
+                "port": 3306,
+                "username": "<username>",
+                "password": "<secret>"
+            },
+            "timeoutSeconds": 2,
+            "recipients": [
+                "c@example.com",
+                "d@example.com"
+            ]
         }
     ]
 }
