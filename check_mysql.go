@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -30,7 +32,10 @@ func (m *Monitor) checkMySQL(site *Site) error {
 	FROM information_schema.tables
 	`
 	var count int
-	err = db.Get(&count, q)
+	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutSeconds)*time.Nanosecond))
+	defer cFunc()
+
+	err = db.GetContext(ctx, &count, q)
 	if err != nil {
 		return fmt.Errorf("action: connect to database, err: %s", err.Error())
 	}

@@ -21,7 +21,7 @@ type Site struct {
 	Protocol       string      `json:"protocol"`
 	HTTPConfig     HTTPConfig  `json:"http"`
 	MySQLConfig    MySQLConfig `json:"mysql"`
-	TimeoutSeconds int         `json:"timeoutSeconds"`
+	TimeoutSeconds int64       `json:"timeoutSeconds"`
 	Recipients     []string    `json:"recipients"`
 }
 

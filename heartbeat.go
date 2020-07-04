@@ -66,6 +66,10 @@ func (m *Monitor) processSites() {
 
 	for _, site := range m.conf.Sites {
 		go func(site Site, ch chan bool) {
+			defer func() {
+				ch <- true
+			}()
+
 			// Resolve the server, if it not an address.
 			if ip := net.ParseIP(site.Server); ip == nil {
 				err := m.resolveServer(site.Server)
@@ -74,6 +78,7 @@ func (m *Monitor) processSites() {
 					if derr != nil {
 						fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
 					}
+					return
 				}
 			}
 
@@ -85,8 +90,6 @@ func (m *Monitor) processSites() {
 					fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
 				}
 			}
-
-			ch <- true
 		}(site, ch)
 	}
 
@@ -120,11 +123,10 @@ func main() {
 	m.resolver = &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			conn, err := net.Dial(network, addr)
-			if err != nil {
-				return nil, err
+			d := net.Dialer{
+				Timeout: time.Millisecond * time.Duration(10000),
 			}
-			return conn, nil
+			return d.DialContext(ctx, "tcp", m.conf.ResolverAddress+":53")
 		},
 	}
 
