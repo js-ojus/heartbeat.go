@@ -32,7 +32,7 @@ func (m *Monitor) checkMySQL(site *Site) error {
 	FROM information_schema.tables
 	`
 	var count int
-	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutSeconds)*time.Nanosecond))
+	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutSeconds)*time.Second))
 	defer cFunc()
 
 	err = db.GetContext(ctx, &count, q)
