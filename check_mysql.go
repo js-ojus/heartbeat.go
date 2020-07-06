@@ -28,14 +28,15 @@ func (m *Monitor) checkMySQL(site *Site) error {
 
 	// Execute query, so that an actual connection is made.
 	q := `
-	SELECT COUNT(*)
+	SELECT table_name
 	FROM information_schema.tables
+	LIMIT 1
 	`
-	var count int
+	var name string
 	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutSeconds)*time.Second))
 	defer cFunc()
 
-	err = db.GetContext(ctx, &count, q)
+	err = db.GetContext(ctx, &name, q)
 	if err != nil {
 		return fmt.Errorf("action: connect to database, err: %s", err.Error())
 	}
