@@ -54,9 +54,16 @@ func (m *Monitor) checkHTTP(site *Site) error {
 
 	switch {
 	case res.StatusCode == 200:
-		return nil
+		// Intentionally left blank.
+
+	case res.StatusCode == 403:
+		if !site.HTTPConfig.Accept403 {
+			return fmt.Errorf("HTTP error : status : %d : %s", res.StatusCode, res.Status)
+		}
 
 	default:
 		return fmt.Errorf("HTTP error : status : %d : %s", res.StatusCode, res.Status)
 	}
+
+	return nil
 }

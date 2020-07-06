@@ -27,10 +27,11 @@ type Site struct {
 
 // HTTPConfig specifies configuration for `http` and `https` services.
 type HTTPConfig struct {
-	Port   int             `json:"port"`
-	URL    string          `json:"url"`
-	Method string          `json:"method"`
-	Body   json.RawMessage `json:"body"`
+	Port      int             `json:"port"`
+	URL       string          `json:"url"`
+	Method    string          `json:"method"`
+	Body      json.RawMessage `json:"body"`
+	Accept403 bool            `json:"accept403"`
 }
 
 // MySQLConfig specifies configuration for MySQL services.
