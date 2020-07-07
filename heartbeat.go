@@ -23,6 +23,9 @@ func (m *Monitor) isServerUp(site *Site) error {
 	case "mysql":
 		return m.checkMySQL(site)
 
+	case "sqlserver":
+		return m.checkSQLServer(site)
+
 	default:
 		return fmt.Errorf("unhandled protocol: %s", site.Protocol)
 	}
