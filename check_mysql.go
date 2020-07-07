@@ -38,7 +38,7 @@ func (m *Monitor) checkMySQL(site *Site) error {
 
 	err = db.GetContext(ctx, &name, q)
 	if err != nil {
-		return fmt.Errorf("action: connect to database, err: %s", err.Error())
+		return fmt.Errorf("action: query database, err: %s", err.Error())
 	}
 
 	return nil
