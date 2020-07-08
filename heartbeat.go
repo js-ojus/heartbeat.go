@@ -10,7 +10,11 @@ import (
 	"os"
 	"os/signal"
 	"time"
+
+	"go.uber.org/zap"
 )
+
+var zLog *zap.Logger
 
 // isServerUp makes a request to the given URL, and reports a non-nil
 // error in case the server at the URL does not respond within the
@@ -44,15 +48,15 @@ func (m *Monitor) resolveServer(host string) error {
 
 // sendAlert composes the alert message, and dispatches it using the
 // SMTP configuration given in the configuration.
-func (m *Monitor) sendAlert(recipients []string, server string, serr error) error {
+func (m *Monitor) sendAlert(recipients []string, server string, sErr error) error {
 	auth := LoginAuth(m.conf.Sender.Username, m.conf.Sender.Password)
-	fstr := "Subject: ALERT : Server down : %s\r\n" +
+	fStr := "Subject: ALERT : Server not reachable : %s\r\n" +
 		"\r\n" +
 		"ERROR : Could not get heartbeat!\r\n" +
 		"\r\n" +
 		"Server : %s\r\n" +
 		"Reason : %s\r\n"
-	msg := fmt.Sprintf(fstr, server, server, serr.Error())
+	msg := fmt.Sprintf(fStr, server, server, sErr.Error())
 
 	err := smtp.SendMail(m.mailServer, auth, m.conf.Sender.Username, recipients, []byte(msg))
 	if err != nil {
@@ -74,25 +78,55 @@ func (m *Monitor) processSites() {
 			}()
 
 			// Resolve the server, if it not an address.
+			trb := time.Now()
 			if ip := net.ParseIP(site.Server); ip == nil {
 				err := m.resolveServer(site.Server)
 				if err != nil {
-					derr := m.sendAlert(site.Recipients, site.Server, err)
-					if derr != nil {
-						fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
+					zLog.Error("dns",
+						zap.String("server", site.Server),
+						zap.String("error", err.Error()))
+
+					dErr := m.sendAlert(site.Recipients, site.Server, err)
+					if dErr != nil {
+						zLog.Error("alert",
+							zap.String("server", site.Server),
+							zap.String("error", dErr.Error()))
 					}
+
 					return
 				}
+
+				tre := time.Now()
+				dur := tre.Sub(trb)
+				zLog.Info("dns",
+					zap.String("server", site.Server),
+					zap.Int64("ms", dur.Milliseconds()))
 			}
 
 			// Check for response.
-			err := m.isServerUp(&site)
-			if err != nil {
-				derr := m.sendAlert(site.Recipients, site.Server, err)
-				if derr != nil {
-					fmt.Printf("%s : ERROR : %v\n", time.Now().Format("2006-01-02 15:04:05"), derr)
+			tb := time.Now()
+			if err := m.isServerUp(&site); err != nil {
+				// Log failure.
+				zLog.Error(site.Protocol,
+					zap.String("server", site.Server),
+					zap.String("error", err.Error()))
+
+				dErr := m.sendAlert(site.Recipients, site.Server, err)
+				if dErr != nil {
+					zLog.Error("alert",
+						zap.String("server", site.Server),
+						zap.String("error", dErr.Error()))
 				}
+
+				return
 			}
+
+			// Log success.
+			te := time.Now()
+			dur := te.Sub(tb)
+			zLog.Info(site.Protocol,
+				zap.String("server", site.Server),
+				zap.Int64("ms", dur.Milliseconds()))
 		}(site, ch)
 	}
 
@@ -103,6 +137,36 @@ func (m *Monitor) processSites() {
 
 // main is the driver.
 func main() {
+	var err error
+
+	zCfg := []byte(`{
+		"level": "info",
+		"encoding": "json",
+		"outputPaths": ["` +
+		"hb.log." + time.Now().Format("2006-01-02_15-04-05") +
+		`"],
+		"errorOutputPaths": ["stderr"],
+		"encoderConfig": {
+		    "messageKey": "type",
+		    "levelKey": "level",
+		    "levelEncoder": "capital",
+		    "timeKey": "at",
+		    "timeEncoder": "iso8601"
+		}
+	}`)
+
+	// Initialise logger.
+	var cfg zap.Config
+	if err = json.Unmarshal(zCfg, &cfg); err != nil {
+		panic(err)
+	}
+	zLog, err = cfg.Build()
+	if err != nil {
+		fmt.Printf("!! Unable to initialise logger : %v\n", err)
+		return
+	}
+	defer zLog.Sync()
+
 	buf, err := ioutil.ReadFile("config.json")
 	if err != nil {
 		fmt.Printf("!! Unable to read `config.json` : %v\n", err)
@@ -127,7 +191,7 @@ func main() {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			d := net.Dialer{
-				Timeout: time.Millisecond * time.Duration(10000),
+				Timeout: time.Second * time.Duration(m.conf.ResolverTimeoutSeconds),
 			}
 			return d.DialContext(ctx, "tcp", m.conf.ResolverAddress+":53")
 		},

@@ -51,10 +51,11 @@ type SQLServerConfig struct {
 
 // Config holds the monitor's configuration.
 type Config struct {
-	Sender           SenderConfig `json:"sender"`
-	HeartbeatSeconds int          `json:"heartbeatSeconds"`
-	ResolverAddress  string       `json:"resolverAddress"`
-	Sites            []Site       `json:"sites"`
+	Sender                 SenderConfig `json:"sender"`
+	HeartbeatSeconds       int          `json:"heartbeatSeconds"`
+	ResolverAddress        string       `json:"resolverAddress"`
+	ResolverTimeoutSeconds int          `json:"resolverTimeoutSeconds"`
+	Sites                  []Site       `json:"sites"`
 }
 
 // Monitor monitors the heartbeat of the servers specified in the
