@@ -14,20 +14,46 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// DefResolverTimeoutSeconds is used in case of no specification in
+	// config.
+	DefResolverTimeoutSeconds = 10
+	// DefHTTPTimeoutSeconds is used in case of no specification in
+	// config.
+	DefHTTPTimeoutSeconds = 15
+	// DefMySQLTimeoutSeconds is used in case of no specification in
+	// config.
+	DefMySQLTimeoutSeconds = 5
+	// DefSQLServerTimeoutSeconds is used in case of no specification in
+	// config.
+	DefSQLServerTimeoutSeconds = 5
+)
+
+//
+
 var zLog *zap.Logger
 
-// isServerUp makes a request to the given URL, and reports a non-nil
-// error in case the server at the URL does not respond within the
-// timeout duration.
+// isServerUp makes a request to the given URL, as per the specified
+// protocol, and reports a non-nil error in case the server at the URL
+// does not respond within the timeout duration.
 func (m *Monitor) isServerUp(site *Site) error {
 	switch site.Protocol {
 	case "http", "https":
+		if site.TimeoutSeconds == 0 {
+			site.TimeoutSeconds = DefHTTPTimeoutSeconds
+		}
 		return m.checkHTTP(site)
 
 	case "mysql":
+		if site.TimeoutSeconds == 0 {
+			site.TimeoutSeconds = DefMySQLTimeoutSeconds
+		}
 		return m.checkMySQL(site)
 
 	case "sqlserver":
+		if site.TimeoutSeconds == 0 {
+			site.TimeoutSeconds = DefSQLServerTimeoutSeconds
+		}
 		return m.checkSQLServer(site)
 
 	default:
@@ -103,7 +129,7 @@ func (m *Monitor) processSites() {
 					zap.Int64("ms", dur.Milliseconds()))
 			}
 
-			// Check for response.
+			// Check for response, as per the specified protocol.
 			tb := time.Now()
 			if err := m.isServerUp(&site); err != nil {
 				// Log failure.
@@ -181,6 +207,9 @@ func main() {
 	if err != nil {
 		fmt.Printf("!! Corrupt configuration JSON : %v\n", err)
 		return
+	}
+	if m.conf.ResolverTimeoutSeconds == 0 {
+		m.conf.ResolverTimeoutSeconds = DefResolverTimeoutSeconds
 	}
 
 	// Set the outgoing server and sender's name.
