@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"go.uber.org/zap"
 )
 
 // checkMySQL makes a connection request to the given server, as per the
@@ -22,6 +23,8 @@ func (m *Monitor) checkMySQL(site *Site) error {
 	dbConf.ParseTime = true
 	db, err := sqlx.Open("mysql", dbConf.FormatDSN())
 	if err != nil {
+		zLog.Error(site.Protocol,
+			zap.String("error", err.Error()))
 		return fmt.Errorf("action: connect to database, err: %s", err.Error())
 	}
 	defer db.Close()
@@ -36,10 +39,17 @@ func (m *Monitor) checkMySQL(site *Site) error {
 	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutSeconds)*time.Second))
 	defer cFunc()
 
+	tb := time.Now()
 	err = db.GetContext(ctx, &name, q)
 	if err != nil {
+		zLog.Error(site.Protocol,
+			zap.String("error", err.Error()))
 		return fmt.Errorf("action: query database, err: %s", err.Error())
 	}
+	te := time.Now()
 
+	zLog.Info(site.Protocol,
+		zap.String("server", site.Server),
+		zap.Int64("total", te.Sub(tb).Milliseconds()))
 	return nil
 }

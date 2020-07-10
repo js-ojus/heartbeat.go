@@ -42,7 +42,7 @@ func (m *Monitor) isServerUp(site *Site) error {
 		if site.TimeoutSeconds == 0 {
 			site.TimeoutSeconds = DefHTTPTimeoutSeconds
 		}
-		return m.checkHTTP(site)
+		return m.checkHTTPx(site)
 
 	case "mysql":
 		if site.TimeoutSeconds == 0 {
@@ -130,29 +130,14 @@ func (m *Monitor) processSites() {
 			}
 
 			// Check for response, as per the specified protocol.
-			tb := time.Now()
 			if err := m.isServerUp(&site); err != nil {
-				// Log failure.
-				zLog.Error(site.Protocol,
-					zap.String("server", site.Server),
-					zap.String("error", err.Error()))
-
 				dErr := m.sendAlert(site.Recipients, site.Server, err)
 				if dErr != nil {
 					zLog.Error("alert",
 						zap.String("server", site.Server),
 						zap.String("error", dErr.Error()))
 				}
-
-				return
 			}
-
-			// Log success.
-			te := time.Now()
-			dur := te.Sub(tb)
-			zLog.Info(site.Protocol,
-				zap.String("server", site.Server),
-				zap.Int64("ms", dur.Milliseconds()))
 		}(site, ch)
 	}
 
