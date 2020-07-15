@@ -133,12 +133,14 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 
 	// Make the request.
 	trp := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: !site.HTTPConfig.VerifyCert},
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: !site.HTTPConfig.VerifyCert},
+		DisableKeepAlives: true,
 	}
 	cl := &http.Client{
 		Transport: trp,
 		Timeout:   time.Duration(site.TimeoutSeconds) * time.Second,
 	}
+	defer cl.CloseIdleConnections()
 
 	res, err := cl.Do(req)
 	if err != nil {
