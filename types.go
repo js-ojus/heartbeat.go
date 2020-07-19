@@ -28,11 +28,12 @@ type Site struct {
 
 // HTTPConfig specifies configuration for `http` and `https` services.
 type HTTPConfig struct {
-	Port      int             `json:"port"`
-	URL       string          `json:"url"`
-	Method    string          `json:"method"`
-	Body      json.RawMessage `json:"body"`
-	Accept403 bool            `json:"accept403"`
+	Port       int             `json:"port"`
+	URL        string          `json:"url"`
+	Method     string          `json:"method"`
+	Body       json.RawMessage `json:"body"`
+	Accept403  bool            `json:"accept403"`
+	VerifyCert bool            `json:"verifyCert"`
 }
 
 // MySQLConfig specifies configuration for MySQL services.
@@ -51,10 +52,11 @@ type SQLServerConfig struct {
 
 // Config holds the monitor's configuration.
 type Config struct {
-	Sender           SenderConfig `json:"sender"`
-	HeartbeatSeconds int          `json:"heartbeatSeconds"`
-	ResolverAddress  string       `json:"resolverAddress"`
-	Sites            []Site       `json:"sites"`
+	Sender                 SenderConfig `json:"sender"`
+	HeartbeatSeconds       int          `json:"heartbeatSeconds"`
+	ResolverAddress        string       `json:"resolverAddress"`
+	ResolverTimeoutSeconds int          `json:"resolverTimeoutSeconds"`
+	Sites                  []Site       `json:"sites"`
 }
 
 // Monitor monitors the heartbeat of the servers specified in the

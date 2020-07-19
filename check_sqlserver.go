@@ -8,6 +8,7 @@ import (
 
 	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/jmoiron/sqlx"
+	"go.uber.org/zap"
 )
 
 // checkSQLServer makes a connection request to the given server, as per
@@ -25,6 +26,8 @@ func (m *Monitor) checkSQLServer(site *Site) error {
 	}
 	db, err := sqlx.Open("sqlserver", u.String())
 	if err != nil {
+		zLog.Error(site.Protocol,
+			zap.String("error", err.Error()))
 		return fmt.Errorf("action: connect to database, err: %s", err.Error())
 	}
 	defer db.Close()
@@ -38,10 +41,17 @@ func (m *Monitor) checkSQLServer(site *Site) error {
 	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutSeconds)*time.Second))
 	defer cFunc()
 
+	tb := time.Now()
 	err = db.GetContext(ctx, &name, q)
 	if err != nil {
+		zLog.Error(site.Protocol,
+			zap.String("error", err.Error()))
 		return fmt.Errorf("action: query database, err: %s", err.Error())
 	}
+	te := time.Now()
 
+	zLog.Info(site.Protocol,
+		zap.String("server", site.Server),
+		zap.Int64("total", te.Sub(tb).Milliseconds()))
 	return nil
 }
