@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/smtp"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"strings"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -92,6 +95,42 @@ func (m *Monitor) sendAlert(recipients []string, server string, sErr error) erro
 	return nil
 }
 
+// sendGMailAlert composes the alert message, and dispatches it using the SMTP
+// configuration given in the configuration.
+func (m *Monitor) sendGmailAlert(recipients []string, server string, sErr error) error {
+	auth := smtp.PlainAuth("", m.conf.Sender.Username, m.conf.Sender.Password, m.conf.Sender.Server)
+
+	// Construct email headers
+	headers := make(map[string]string)
+	headers["From"] = fmt.Sprintf("%s <%s>", "J S", m.conf.Sender.Username)
+	headers["To"] = strings.Join(recipients, ",")
+	headers["Subject"] = "ALERT : Server not reachable : " + server
+	headers["MIME-Version"] = "1.0"
+	headers["Content-Type"] = "text/html; charset=UTF-8"
+
+	// Build message
+	var message string
+	for key, value := range headers {
+		message += fmt.Sprintf("%s: %s\r\n", key, value)
+	}
+	message += "\r\n" + `
+	<h3>ERROR : Could not get heartbeat!</h3>
+	<p>Server : ` + server + `</p>
+	<p>Reason : ` + sErr.Error() + `</p>
+	`
+
+	// Send email
+	err := smtp.SendMail(
+		m.mailServer,
+		auth,
+		m.conf.Sender.Username,
+		recipients,
+		[]byte(message),
+	)
+
+	return err
+}
+
 // processSites is the main loop of the heartbeat checker.
 func (m *Monitor) processSites() {
 	l := len(m.conf.Sites)
@@ -112,7 +151,7 @@ func (m *Monitor) processSites() {
 						zap.String("server", site.Server),
 						zap.String("error", err.Error()))
 
-					dErr := m.sendAlert(site.Recipients, site.Server, err)
+					dErr := m.sendGmailAlert(site.Recipients, site.Server, err)
 					if dErr != nil {
 						zLog.Error("alert",
 							zap.String("server", site.Server),
@@ -131,7 +170,7 @@ func (m *Monitor) processSites() {
 
 			// Check for response, as per the specified protocol.
 			if err := m.isServerUp(&site); err != nil {
-				dErr := m.sendAlert(site.Recipients, site.Server, err)
+				dErr := m.sendGmailAlert(site.Recipients, site.Server, err)
 				if dErr != nil {
 					zLog.Error("alert",
 						zap.String("server", site.Server),
@@ -148,12 +187,22 @@ func (m *Monitor) processSites() {
 
 // main is the driver.
 func main() {
+	fVersion := flag.Bool("v", false, "print version information")
+	flag.Parse()
+	if *fVersion {
+		info, _ := debug.ReadBuildInfo()
+		fmt.Printf("Go Version      : %s\n", info.GoVersion)
+		fmt.Printf("Program Version : %s\n", info.Main.Version)
+		fmt.Println()
+		return
+	}
+
 	var err error
 
 	zCfg := []byte(`{
 		"level": "info",
 		"encoding": "json",
-		"outputPaths": ["` +
+		"outputPaths": ["log/` +
 		"hb.log." + time.Now().Format("2006-01-02_15-04-05") +
 		`"],
 		"errorOutputPaths": ["stderr"],
@@ -169,18 +218,19 @@ func main() {
 	// Initialise logger.
 	var cfg zap.Config
 	if err = json.Unmarshal(zCfg, &cfg); err != nil {
-		panic(err)
+		fmt.Printf("!! Unable to initialize logging : %s\n", err.Error())
+		return
 	}
 	zLog, err = cfg.Build()
 	if err != nil {
-		fmt.Printf("!! Unable to initialise logger : %v\n", err)
+		fmt.Printf("!! Unable to initialise logger : %s\n", err.Error())
 		return
 	}
 	defer zLog.Sync()
 
-	buf, err := ioutil.ReadFile("config.json")
+	buf, err := os.ReadFile("config.json")
 	if err != nil {
-		fmt.Printf("!! Unable to read `config.json` : %v\n", err)
+		fmt.Printf("!! Unable to read `config.json` : %s\n", err.Error())
 		return
 	}
 
@@ -190,7 +240,7 @@ func main() {
 	}
 	err = json.Unmarshal(buf, m.conf)
 	if err != nil {
-		fmt.Printf("!! Corrupt configuration JSON : %v\n", err)
+		fmt.Printf("!! Corrupt configuration JSON : %s\n", err.Error())
 		return
 	}
 	if m.conf.ResolverTimeoutSeconds == 0 {
@@ -215,7 +265,7 @@ func main() {
 	done := make(chan struct{})
 	go func(ch chan struct{}) {
 		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, os.Interrupt, os.Kill)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 		<-sig
 		fmt.Println("Shutting down heartbeat monitor ...")
 
