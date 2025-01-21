@@ -9,10 +9,11 @@ import (
 
 // SenderConfig specifies the configuration to use for sending alerts.
 type SenderConfig struct {
-	Server   string `json:"server"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Server      string `json:"server"`
+	Port        int    `json:"port"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	DisplayName string `json:"displayName"`
 }
 
 // Site specifies a site whose heartbeat has to be monitored.

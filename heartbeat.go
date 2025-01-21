@@ -102,7 +102,7 @@ func (m *Monitor) sendGmailAlert(recipients []string, server string, sErr error)
 
 	// Construct email headers
 	headers := make(map[string]string)
-	headers["From"] = fmt.Sprintf("%s <%s>", "J S", m.conf.Sender.Username)
+	headers["From"] = fmt.Sprintf("%s <%s>", m.conf.Sender.DisplayName, m.conf.Sender.Username)
 	headers["To"] = strings.Join(recipients, ",")
 	headers["Subject"] = "ALERT : Server not reachable : " + server
 	headers["MIME-Version"] = "1.0"
