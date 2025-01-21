@@ -9,7 +9,7 @@ import (
 	"net/smtp"
 	"os"
 	"os/signal"
-	"runtime/debug"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -34,7 +34,14 @@ const (
 
 //
 
-var zLog *zap.Logger
+var (
+	ProgramVersion string
+	GitCommit      string
+	BuiltAt        string
+	GoVersion      string
+
+	zLog *zap.Logger
+)
 
 // isServerUp makes a request to the given URL, as per the specified
 // protocol, and reports a non-nil error in case the server at the URL
@@ -190,9 +197,14 @@ func main() {
 	fVersion := flag.Bool("v", false, "print version information")
 	flag.Parse()
 	if *fVersion {
-		info, _ := debug.ReadBuildInfo()
-		fmt.Printf("Go Version      : %s\n", info.GoVersion)
-		fmt.Printf("Program Version : %s\n", info.Main.Version)
+		progName := path.Base(os.Args[0])
+		_l := len(progName)
+		// info, _ := debug.ReadBuildInfo()
+
+		fmt.Printf("%[1]*[2]s : %[3]s\n", _l, progName, ProgramVersion)
+		fmt.Printf("%[1]*[2]s : %[3]s\n", _l, "Git Commit", GitCommit)
+		fmt.Printf("%[1]*[2]s : %[3]s\n", _l, "Built At", BuiltAt)
+		fmt.Printf("%[1]*[2]s : %[3]s\n", _l, "Built Using", GoVersion)
 		fmt.Println()
 		return
 	}
