@@ -23,7 +23,7 @@ type Site struct {
 	HTTPConfig      HTTPConfig      `json:"http"`
 	MySQLConfig     MySQLConfig     `json:"mysql"`
 	SQLServerConfig SQLServerConfig `json:"sqlserver"`
-	TimeoutSeconds  int64           `json:"timeoutSeconds"`
+	TimeoutMillis   int64           `json:"timeoutMillis"`
 	Recipients      []string        `json:"recipients"`
 }
 
@@ -53,11 +53,11 @@ type SQLServerConfig struct {
 
 // Config holds the monitor's configuration.
 type Config struct {
-	Sender                 SenderConfig `json:"sender"`
-	HeartbeatSeconds       int          `json:"heartbeatSeconds"`
-	ResolverAddress        string       `json:"resolverAddress"`
-	ResolverTimeoutSeconds int          `json:"resolverTimeoutSeconds"`
-	Sites                  []Site       `json:"sites"`
+	Sender                SenderConfig `json:"sender"`
+	HeartbeatSeconds      int          `json:"heartbeatSeconds"`
+	ResolverAddress       string       `json:"resolverAddress"`
+	ResolverTimeoutMillis int          `json:"resolverTimeoutMillis"`
+	Sites                 []Site       `json:"sites"`
 }
 
 // Monitor monitors the heartbeat of the servers specified in the

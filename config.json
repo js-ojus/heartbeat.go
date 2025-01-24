@@ -7,6 +7,7 @@
     },
     "heartbeatSeconds": 600,
     "resolverAddress": "8.8.8.8",
+    "resolverTimeoutMillis": 500,
     "sites": [
         {
             "server": "www.example.com",
@@ -17,7 +18,7 @@
                 "method": "POST",
                 "body": "<unescaped body>"
             },
-            "timeoutSeconds": 5,
+            "timeoutMillis": 5000,
             "recipients": [
                 "a@example.com",
                 "b@example.com"
@@ -31,7 +32,7 @@
                 "username": "<username>",
                 "password": "<secret>"
             },
-            "timeoutSeconds": 2,
+            "timeoutMillis": 2000,
             "recipients": [
                 "c@example.com",
                 "d@example.com"

@@ -18,18 +18,14 @@ import (
 )
 
 const (
-	// DefResolverTimeoutSeconds is used in case of no specification in
-	// config.
-	DefResolverTimeoutSeconds = 10
-	// DefHTTPTimeoutSeconds is used in case of no specification in
-	// config.
-	DefHTTPTimeoutSeconds = 15
-	// DefMySQLTimeoutSeconds is used in case of no specification in
-	// config.
-	DefMySQLTimeoutSeconds = 5
-	// DefSQLServerTimeoutSeconds is used in case of no specification in
-	// config.
-	DefSQLServerTimeoutSeconds = 5
+	// DefResolverTimeoutMillis is used in case of no specification in config.
+	DefResolverTimeoutMillis = 10000
+	// DefHTTPTimeoutMillis is used in case of no specification in config.
+	DefHTTPTimeoutMillis = 15000
+	// DefMySQLTimeoutMillis is used in case of no specification in config.
+	DefMySQLTimeoutMillis = 5000
+	// DefSQLServerTimeoutMillis is used in case of no specification in config.
+	DefSQLServerTimeoutMillis = 5000
 )
 
 //
@@ -49,20 +45,20 @@ var (
 func (m *Monitor) isServerUp(site *Site) error {
 	switch site.Protocol {
 	case "http", "https":
-		if site.TimeoutSeconds == 0 {
-			site.TimeoutSeconds = DefHTTPTimeoutSeconds
+		if site.TimeoutMillis == 0 {
+			site.TimeoutMillis = DefHTTPTimeoutMillis
 		}
 		return m.checkHTTPx(site)
 
 	case "mysql":
-		if site.TimeoutSeconds == 0 {
-			site.TimeoutSeconds = DefMySQLTimeoutSeconds
+		if site.TimeoutMillis == 0 {
+			site.TimeoutMillis = DefMySQLTimeoutMillis
 		}
 		return m.checkMySQL(site)
 
 	case "sqlserver":
-		if site.TimeoutSeconds == 0 {
-			site.TimeoutSeconds = DefSQLServerTimeoutSeconds
+		if site.TimeoutMillis == 0 {
+			site.TimeoutMillis = DefSQLServerTimeoutMillis
 		}
 		return m.checkSQLServer(site)
 
@@ -168,11 +164,19 @@ func (m *Monitor) processSites() {
 					return
 				}
 
-				tre := time.Now()
-				dur := tre.Sub(trb)
+				dur := time.Since(trb).Milliseconds()
 				zLog.Info("dns",
 					zap.String("server", site.Server),
-					zap.Int64("ms", dur.Milliseconds()))
+					zap.Int64("ms", dur))
+				if dur >= int64(m.conf.ResolverTimeoutMillis) {
+					sErr := fmt.Errorf("DNS resolution time limit exceeded: %d ms", dur)
+					dErr := m.sendGmailAlert(site.Recipients, site.Server, sErr)
+					if dErr != nil {
+						zLog.Error("alert",
+							zap.String("server", site.Server),
+							zap.String("error", dErr.Error()))
+					}
+				}
 			}
 
 			// Check for response, as per the specified protocol.
@@ -255,8 +259,8 @@ func main() {
 		fmt.Printf("!! Corrupt configuration JSON : %s\n", err.Error())
 		return
 	}
-	if m.conf.ResolverTimeoutSeconds == 0 {
-		m.conf.ResolverTimeoutSeconds = DefResolverTimeoutSeconds
+	if m.conf.ResolverTimeoutMillis == 0 {
+		m.conf.ResolverTimeoutMillis = DefResolverTimeoutMillis
 	}
 
 	// Set the outgoing server and sender's name.
@@ -267,9 +271,9 @@ func main() {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			d := net.Dialer{
-				Timeout: time.Second * time.Duration(m.conf.ResolverTimeoutSeconds),
+				Timeout: time.Millisecond * time.Duration(m.conf.ResolverTimeoutMillis),
 			}
-			return d.DialContext(ctx, "tcp", m.conf.ResolverAddress+":53")
+			return d.DialContext(ctx, "udp", m.conf.ResolverAddress+":53")
 		},
 	}
 

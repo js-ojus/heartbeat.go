@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -23,7 +22,7 @@ func (m *Monitor) checkHTTP(site *Site) error {
 	}
 	cl := &http.Client{
 		Transport: tr,
-		Timeout:   time.Duration(site.TimeoutSeconds) * time.Second,
+		Timeout:   time.Duration(site.TimeoutMillis) * time.Millisecond,
 	}
 
 	// Construct the full URL.
@@ -97,106 +96,94 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 	// Construct the request.
 	var tDNSStart,
 		tDNSDone,
+		tConnectStart,
 		tConnectDone,
-		tGotConn,
-		tGotFirstResponseByte,
-		tTLSHandshakeStart,
-		tTLSHandshakeDone time.Time
+		tTLSStart,
+		tTLSDone,
+		tFirstByte time.Time
 
-	var dErr error
+	// Configure the request tracer.
 	trace := &httptrace.ClientTrace{
-		DNSStart: func(_ httptrace.DNSStartInfo) { tDNSStart = time.Now() },
-		DNSDone:  func(_ httptrace.DNSDoneInfo) { tDNSDone = time.Now() },
-		ConnectStart: func(_, _ string) {
-			if tDNSDone.IsZero() {
-				// Connecting to IP address.
-				tDNSDone = time.Now()
-			}
+		DNSStart: func(info httptrace.DNSStartInfo) {
+			tDNSStart = time.Now()
 		},
-		ConnectDone: func(net, addr string, err error) {
-			if err != nil {
-				dErr = err
-			}
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			tDNSDone = time.Now()
+		},
+		ConnectStart: func(network, addr string) {
+			tConnectStart = time.Now()
+		},
+		ConnectDone: func(network, addr string, err error) {
 			tConnectDone = time.Now()
 		},
-		GotConn:              func(_ httptrace.GotConnInfo) { tGotConn = time.Now() },
-		GotFirstResponseByte: func() { tGotFirstResponseByte = time.Now() },
-		TLSHandshakeStart:    func() { tTLSHandshakeStart = time.Now() },
-		TLSHandshakeDone:     func(_ tls.ConnectionState, _ error) { tTLSHandshakeDone = time.Now() },
+		TLSHandshakeStart: func() {
+			tTLSStart = time.Now()
+		},
+		TLSHandshakeDone: func(state tls.ConnectionState, err error) {
+			tTLSDone = time.Now()
+		},
+		GotFirstResponseByte: func() {
+			tFirstByte = time.Now()
+		},
 	}
+
+	// Configure the request.
 	req, err := http.NewRequest(site.HTTPConfig.Method, fullURL, bytes.NewReader(site.HTTPConfig.Body))
 	if err != nil {
 		writeError(err)
 		return err
 	}
-	req = req.WithContext(httptrace.WithClientTrace(context.Background(), trace))
-
-	// Make the request.
-	trp := &http.Transport{
+	_tr := httptrace.WithClientTrace(req.Context(), trace)
+	req = req.WithContext(_tr)
+	_trp := &http.Transport{
 		TLSClientConfig:   &tls.Config{InsecureSkipVerify: !site.HTTPConfig.VerifyCert},
 		DisableKeepAlives: true,
 	}
-	cl := &http.Client{
-		Transport: trp,
-		Timeout:   time.Duration(site.TimeoutSeconds) * time.Second,
-	}
-	defer cl.CloseIdleConnections()
 
-	res, err := cl.Do(req)
+	// Make the request.
+	start := time.Now()
+	resp, err := _trp.RoundTrip(req)
 	if err != nil {
-		writeError(err)
-		return err
+		return fmt.Errorf("making request: %v", err)
 	}
-	if dErr != nil {
-		writeError(err)
-		return dErr
-	}
-	defer res.Body.Close()
+	defer resp.Body.Close()
 
 	// Write metrics.
-	tFinal := time.Now()
-	if tDNSStart.IsZero() {
-		tDNSStart = tDNSDone
-	}
-	tDNS := tDNSDone.Sub(tDNSStart).Milliseconds()
-	tConnect := tConnectDone.Sub(tDNSDone).Milliseconds()
-	tTLSHandshake := tTLSHandshakeDone.Sub(tTLSHandshakeStart).Milliseconds()
-	tServer := tGotFirstResponseByte.Sub(tGotConn).Milliseconds()
-	tTransfer := tFinal.Sub(tGotFirstResponseByte).Milliseconds()
-	tTotal := tFinal.Sub(tDNSStart).Milliseconds()
-
+	tTotal := time.Since(start).Milliseconds()
 	writeInfo := func() {
 		zLog.Info(site.Protocol,
 			zap.String("server", site.Server),
-			zap.Int64("resolve", tDNS),
-			zap.Int64("connect", tConnect),
-			zap.Int64("tls", tTLSHandshake),
-			zap.Int64("processing", tServer),
-			zap.Int64("transfer", tTransfer),
+			zap.Int64("resolve", tDNSDone.Sub(tDNSStart).Milliseconds()),
+			zap.Int64("connect", tConnectDone.Sub(tConnectStart).Milliseconds()),
+			zap.Int64("tls", tTLSDone.Sub(tTLSStart).Milliseconds()),
+			zap.Int64("ttfb", tFirstByte.Sub(start).Milliseconds()),
 			zap.Int64("total", tTotal))
 	}
 	writeError2 := func() {
 		zLog.Error(site.Protocol,
 			zap.String("server", site.Server),
-			zap.Int("status", res.StatusCode),
-			zap.String("error", res.Status))
+			zap.Int("status", resp.StatusCode),
+			zap.String("error", resp.Status))
 	}
 
 	switch {
-	case res.StatusCode == 200:
+	case resp.StatusCode == 200:
 		// Intentionally left blank.
 
-	case res.StatusCode == 403:
+	case resp.StatusCode == 403:
 		if !site.HTTPConfig.Accept403 {
 			writeError2()
-			return fmt.Errorf("HTTP error : status : %d : %s", res.StatusCode, res.Status)
+			return fmt.Errorf("HTTP error : status : %d : %s", resp.StatusCode, resp.Status)
 		}
 
 	default:
 		writeError2()
-		return fmt.Errorf("HTTP error : status : %d : %s", res.StatusCode, res.Status)
+		return fmt.Errorf("HTTP error : status : %d : %s", resp.StatusCode, resp.Status)
 	}
 
 	writeInfo()
+	if (tTotal) >= site.TimeoutMillis {
+		return fmt.Errorf("HTTP request time limit exceeded: %d ms", tTotal)
+	}
 	return nil
 }
