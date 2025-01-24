@@ -19,9 +19,9 @@ import (
 
 const (
 	// DefResolverTimeoutMillis is used in case of no specification in config.
-	DefResolverTimeoutMillis = 10000
+	DefResolverTimeoutMillis = 500
 	// DefHTTPTimeoutMillis is used in case of no specification in config.
-	DefHTTPTimeoutMillis = 15000
+	DefHTTPTimeoutMillis = 5000
 	// DefMySQLTimeoutMillis is used in case of no specification in config.
 	DefMySQLTimeoutMillis = 5000
 	// DefSQLServerTimeoutMillis is used in case of no specification in config.
@@ -100,14 +100,14 @@ func (m *Monitor) sendAlert(recipients []string, server string, sErr error) erro
 
 // sendGMailAlert composes the alert message, and dispatches it using the SMTP
 // configuration given in the configuration.
-func (m *Monitor) sendGmailAlert(recipients []string, server string, sErr error) error {
+func (m *Monitor) sendGmailAlert(recipients []string, svc, server string, sErr error) error {
 	auth := smtp.PlainAuth("", m.conf.Sender.Username, m.conf.Sender.Password, m.conf.Sender.Server)
 
 	// Construct email headers
 	headers := make(map[string]string)
 	headers["From"] = fmt.Sprintf("%s <%s>", m.conf.Sender.DisplayName, m.conf.Sender.Username)
 	headers["To"] = strings.Join(recipients, ",")
-	headers["Subject"] = "ALERT : Server not reachable : " + server
+	headers["Subject"] = "ALERT : Issue with '" + svc + "' : " + server
 	headers["MIME-Version"] = "1.0"
 	headers["Content-Type"] = "text/html; charset=UTF-8"
 
@@ -117,9 +117,9 @@ func (m *Monitor) sendGmailAlert(recipients []string, server string, sErr error)
 		message += fmt.Sprintf("%s: %s\r\n", key, value)
 	}
 	message += "\r\n" + `
-	<h3>ERROR : Could not get heartbeat!</h3>
+	<h3>Issue observed in '` + svc + `'</h3>
 	<p>Server : ` + server + `</p>
-	<p>Reason : ` + sErr.Error() + `</p>
+	<p>Issue : ` + sErr.Error() + `</p>
 	`
 
 	// Send email
@@ -146,42 +146,44 @@ func (m *Monitor) processSites() {
 			}()
 
 			// Resolve the server, if it not an address.
-			trb := time.Now()
-			if ip := net.ParseIP(site.Server); ip == nil {
-				err := m.resolveServer(site.Server)
-				if err != nil {
-					zLog.Error("dns",
-						zap.String("server", site.Server),
-						zap.String("error", err.Error()))
-
-					dErr := m.sendGmailAlert(site.Recipients, site.Server, err)
-					if dErr != nil {
-						zLog.Error("alert",
+			if m.conf.ReportDNS {
+				trb := time.Now()
+				if ip := net.ParseIP(site.Server); ip == nil {
+					err := m.resolveServer(site.Server)
+					if err != nil {
+						zLog.Error("dns",
 							zap.String("server", site.Server),
-							zap.String("error", dErr.Error()))
+							zap.String("error", err.Error()))
+
+						dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, err)
+						if dErr != nil {
+							zLog.Error("alert",
+								zap.String("server", site.Server),
+								zap.String("error", dErr.Error()))
+						}
+
+						return
 					}
 
-					return
-				}
-
-				dur := time.Since(trb).Milliseconds()
-				zLog.Info("dns",
-					zap.String("server", site.Server),
-					zap.Int64("ms", dur))
-				if dur >= int64(m.conf.ResolverTimeoutMillis) {
-					sErr := fmt.Errorf("DNS resolution time limit exceeded: %d ms", dur)
-					dErr := m.sendGmailAlert(site.Recipients, site.Server, sErr)
-					if dErr != nil {
-						zLog.Error("alert",
-							zap.String("server", site.Server),
-							zap.String("error", dErr.Error()))
+					dur := time.Since(trb).Milliseconds()
+					zLog.Info("dns",
+						zap.String("server", site.Server),
+						zap.Int64("ms", dur))
+					if dur >= int64(m.conf.ResolverTimeoutMillis) {
+						sErr := fmt.Errorf("DNS resolution time limit exceeded: %d ms", dur)
+						dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, sErr)
+						if dErr != nil {
+							zLog.Error("alert",
+								zap.String("server", site.Server),
+								zap.String("error", dErr.Error()))
+						}
 					}
 				}
 			}
 
 			// Check for response, as per the specified protocol.
 			if err := m.isServerUp(&site); err != nil {
-				dErr := m.sendGmailAlert(site.Recipients, site.Server, err)
+				dErr := m.sendGmailAlert(site.Recipients, site.Protocol, site.Server, err)
 				if dErr != nil {
 					zLog.Error("alert",
 						zap.String("server", site.Server),

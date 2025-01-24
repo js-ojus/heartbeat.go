@@ -149,11 +149,12 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 	defer resp.Body.Close()
 
 	// Write metrics.
+	tResolve := tDNSDone.Sub(tDNSStart).Milliseconds()
 	tTotal := time.Since(start).Milliseconds()
 	writeInfo := func() {
 		zLog.Info(site.Protocol,
 			zap.String("server", site.Server),
-			zap.Int64("resolve", tDNSDone.Sub(tDNSStart).Milliseconds()),
+			zap.Int64("resolve", tResolve),
 			zap.Int64("connect", tConnectDone.Sub(tConnectStart).Milliseconds()),
 			zap.Int64("tls", tTLSDone.Sub(tTLSStart).Milliseconds()),
 			zap.Int64("ttfb", tFirstByte.Sub(start).Milliseconds()),
@@ -182,8 +183,21 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 	}
 
 	writeInfo()
-	if (tTotal) >= site.TimeoutMillis {
-		return fmt.Errorf("HTTP request time limit exceeded: %d ms", tTotal)
+	if tResolve >= int64(m.conf.ResolverTimeoutMillis) {
+		dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, err)
+		if dErr != nil {
+			zLog.Error("alert",
+				zap.String("server", site.Server),
+				zap.String("error", dErr.Error()))
+		}
+	}
+	if tTotal >= site.TimeoutMillis {
+		dErr := m.sendGmailAlert(site.Recipients, site.Protocol, site.Server, err)
+		if dErr != nil {
+			zLog.Error("alert",
+				zap.String("server", site.Server),
+				zap.String("error", dErr.Error()))
+		}
 	}
 	return nil
 }
