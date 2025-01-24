@@ -57,6 +57,7 @@ type Config struct {
 	HeartbeatSeconds      int          `json:"heartbeatSeconds"`
 	ResolverAddress       string       `json:"resolverAddress"`
 	ResolverTimeoutMillis int          `json:"resolverTimeoutMillis"`
+	ReportDNS             bool         `json:"reportDns"`
 	Sites                 []Site       `json:"sites"`
 }
 
