@@ -38,7 +38,7 @@ func (m *Monitor) checkSQLServer(site *Site) error {
 	FROM sys.tables
 	`
 	var name string
-	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutSeconds)*time.Second))
+	ctx, cFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Duration(site.TimeoutMillis)*time.Millisecond))
 	defer cFunc()
 
 	tb := time.Now()
