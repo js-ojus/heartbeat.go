@@ -264,6 +264,11 @@ func main() {
 	if m.conf.ResolverTimeoutMillis == 0 {
 		m.conf.ResolverTimeoutMillis = DefResolverTimeoutMillis
 	}
+	fmt.Println("-- starting with the following timeout specifications:")
+	fmt.Printf("\tresolver timeout: %d ms\n", m.conf.ResolverTimeoutMillis)
+	for _, s := range m.conf.Sites {
+		fmt.Printf("\ttimeout for '%s' on site '%s': %d ms\n", s.Protocol, s.Server, s.TimeoutMillis)
+	}
 
 	// Set the outgoing server and sender's name.
 	m.mailServer = fmt.Sprintf("%s:%d", m.conf.Sender.Server, m.conf.Sender.Port)

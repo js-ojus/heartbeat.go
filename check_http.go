@@ -184,7 +184,8 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 
 	writeInfo()
 	if tResolve >= int64(m.conf.ResolverTimeoutMillis) {
-		dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, err)
+		sErr := fmt.Errorf("DNS resolution time limit exceeded: %d ms", tResolve)
+		dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, sErr)
 		if dErr != nil {
 			zLog.Error("alert",
 				zap.String("server", site.Server),
@@ -192,7 +193,8 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 		}
 	}
 	if tTotal >= site.TimeoutMillis {
-		dErr := m.sendGmailAlert(site.Recipients, site.Protocol, site.Server, err)
+		sErr := fmt.Errorf("total time limit exceeded: %d ms", tTotal)
+		dErr := m.sendGmailAlert(site.Recipients, site.Protocol, site.Server, sErr)
 		if dErr != nil {
 			zLog.Error("alert",
 				zap.String("server", site.Server),
