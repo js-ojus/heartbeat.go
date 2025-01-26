@@ -200,7 +200,7 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 		}
 	}
 	if (tConnection + tTLS) >= int64(site.ConnectionTimeoutMillis) {
-		sErr := fmt.Errorf("connection+TLS time limit (%d) exceeded: %d ms", site.ConnectionTimeoutMillis, tResolve)
+		sErr := fmt.Errorf("connection+TLS time limit (%d) exceeded: %d ms", site.ConnectionTimeoutMillis, tConnection+tTLS)
 		dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, sErr)
 		if dErr != nil {
 			zLog.Error("alert",
@@ -209,7 +209,7 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 		}
 	}
 	if tProcessing >= site.TimeoutMillis {
-		sErr := fmt.Errorf("server time limit (%d) exceeded: %d ms", site.TimeoutMillis, tTotal)
+		sErr := fmt.Errorf("processing time limit (%d) exceeded: %d ms", site.TimeoutMillis, tProcessing)
 		dErr := m.sendGmailAlert(site.Recipients, site.Protocol, site.Server, sErr)
 		if dErr != nil {
 			zLog.Error("alert",
