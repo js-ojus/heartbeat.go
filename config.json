@@ -18,7 +18,8 @@
                 "method": "POST",
                 "body": "<unescaped body>"
             },
-            "timeoutMillis": 5000,
+            "connectionTimeoutMillis": 100,
+            "timeoutMillis": 500,
             "recipients": [
                 "a@example.com",
                 "b@example.com"
@@ -32,7 +33,8 @@
                 "username": "<username>",
                 "password": "<secret>"
             },
-            "timeoutMillis": 2000,
+            "connectionTimeoutMillis": 100,
+            "timeoutMillis": 500,
             "recipients": [
                 "c@example.com",
                 "d@example.com"

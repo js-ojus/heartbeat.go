@@ -18,13 +18,14 @@ type SenderConfig struct {
 
 // Site specifies a site whose heartbeat has to be monitored.
 type Site struct {
-	Server          string          `json:"server"`
-	Protocol        string          `json:"protocol"`
-	HTTPConfig      HTTPConfig      `json:"http"`
-	MySQLConfig     MySQLConfig     `json:"mysql"`
-	SQLServerConfig SQLServerConfig `json:"sqlserver"`
-	TimeoutMillis   int64           `json:"timeoutMillis"`
-	Recipients      []string        `json:"recipients"`
+	Server                  string          `json:"server"`
+	Protocol                string          `json:"protocol"`
+	HTTPConfig              HTTPConfig      `json:"http"`
+	MySQLConfig             MySQLConfig     `json:"mysql"`
+	SQLServerConfig         SQLServerConfig `json:"sqlserver"`
+	ConnectionTimeoutMillis int64           `json:"connectionTimeoutMillis"`
+	TimeoutMillis           int64           `json:"timeoutMillis"`
+	Recipients              []string        `json:"recipients"`
 }
 
 // HTTPConfig specifies configuration for `http` and `https` services.
