@@ -76,7 +76,7 @@ func (m *Monitor) checkHTTP(site *Site) error {
 func (m *Monitor) checkHTTPx(site *Site) error {
 	writeError := func(err error) {
 		zLog.Error(site.Protocol,
-			zap.String("server", site.Server),
+			zap.String("uri", site.Server),
 			zap.String("error", err.Error()))
 	}
 
@@ -150,19 +150,26 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 
 	// Write metrics.
 	tResolve := tDNSDone.Sub(tDNSStart).Milliseconds()
+	tConnection := tConnectDone.Sub(tConnectStart).Milliseconds()
+	tTLS := tTLSDone.Sub(tTLSStart).Milliseconds()
+	ttfb := tFirstByte.Sub(start).Milliseconds()
+	tProcessing := ttfb - tTLS - tConnection - tResolve
+	tServer := tConnection + tTLS + tProcessing
 	tTotal := time.Since(start).Milliseconds()
 	writeInfo := func() {
 		zLog.Info(site.Protocol,
-			zap.String("server", site.Server),
+			zap.String("uri", site.Server),
 			zap.Int64("resolve", tResolve),
-			zap.Int64("connect", tConnectDone.Sub(tConnectStart).Milliseconds()),
-			zap.Int64("tls", tTLSDone.Sub(tTLSStart).Milliseconds()),
-			zap.Int64("ttfb", tFirstByte.Sub(start).Milliseconds()),
+			zap.Int64("connect", tConnection),
+			zap.Int64("tls", tTLS),
+			zap.Int64("processing", tProcessing),
+			zap.Int64("serverTotal", tServer),
+			zap.Int64("ttfb", ttfb),
 			zap.Int64("total", tTotal))
 	}
 	writeError2 := func() {
 		zLog.Error(site.Protocol,
-			zap.String("server", site.Server),
+			zap.String("uri", site.Server),
 			zap.Int("status", resp.StatusCode),
 			zap.String("error", resp.Status))
 	}
@@ -184,20 +191,29 @@ func (m *Monitor) checkHTTPx(site *Site) error {
 
 	writeInfo()
 	if tResolve >= int64(m.conf.ResolverTimeoutMillis) {
-		sErr := fmt.Errorf("DNS resolution time limit exceeded: %d ms", tResolve)
+		sErr := fmt.Errorf("DNS resolution time limit (%d) exceeded: %d ms", m.conf.ResolverTimeoutMillis, tResolve)
 		dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, sErr)
 		if dErr != nil {
 			zLog.Error("alert",
-				zap.String("server", site.Server),
+				zap.String("uri", site.Server),
 				zap.String("error", dErr.Error()))
 		}
 	}
-	if tTotal >= site.TimeoutMillis {
-		sErr := fmt.Errorf("total time limit exceeded: %d ms", tTotal)
+	if (tConnection + tTLS) >= int64(site.ConnectionTimeoutMillis) {
+		sErr := fmt.Errorf("connection+TLS time limit (%d) exceeded: %d ms", site.ConnectionTimeoutMillis, tResolve)
+		dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, sErr)
+		if dErr != nil {
+			zLog.Error("alert",
+				zap.String("uri", site.Server),
+				zap.String("error", dErr.Error()))
+		}
+	}
+	if tProcessing >= site.TimeoutMillis {
+		sErr := fmt.Errorf("server time limit (%d) exceeded: %d ms", site.TimeoutMillis, tTotal)
 		dErr := m.sendGmailAlert(site.Recipients, site.Protocol, site.Server, sErr)
 		if dErr != nil {
 			zLog.Error("alert",
-				zap.String("server", site.Server),
+				zap.String("uri", site.Server),
 				zap.String("error", dErr.Error()))
 		}
 	}

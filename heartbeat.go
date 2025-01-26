@@ -21,11 +21,11 @@ const (
 	// DefResolverTimeoutMillis is used in case of no specification in config.
 	DefResolverTimeoutMillis = 500
 	// DefHTTPTimeoutMillis is used in case of no specification in config.
-	DefHTTPTimeoutMillis = 5000
+	DefHTTPTimeoutMillis = 500
 	// DefMySQLTimeoutMillis is used in case of no specification in config.
-	DefMySQLTimeoutMillis = 5000
+	DefMySQLTimeoutMillis = 500
 	// DefSQLServerTimeoutMillis is used in case of no specification in config.
-	DefSQLServerTimeoutMillis = 5000
+	DefSQLServerTimeoutMillis = 500
 )
 
 //
@@ -145,20 +145,21 @@ func (m *Monitor) processSites() {
 				ch <- true
 			}()
 
-			// Resolve the server, if it not an address.
+			// Perform an external DNS resolution, if asked for.
 			if m.conf.ReportDNS {
 				trb := time.Now()
+				// Resolve the server, if it not an address.
 				if ip := net.ParseIP(site.Server); ip == nil {
 					err := m.resolveServer(site.Server)
 					if err != nil {
 						zLog.Error("dns",
-							zap.String("server", site.Server),
+							zap.String("uri", site.Server),
 							zap.String("error", err.Error()))
 
 						dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, err)
 						if dErr != nil {
 							zLog.Error("alert",
-								zap.String("server", site.Server),
+								zap.String("uri", site.Server),
 								zap.String("error", dErr.Error()))
 						}
 
@@ -167,14 +168,14 @@ func (m *Monitor) processSites() {
 
 					dur := time.Since(trb).Milliseconds()
 					zLog.Info("dns",
-						zap.String("server", site.Server),
+						zap.String("uri", site.Server),
 						zap.Int64("ms", dur))
 					if dur >= int64(m.conf.ResolverTimeoutMillis) {
 						sErr := fmt.Errorf("DNS resolution time limit exceeded: %d ms", dur)
 						dErr := m.sendGmailAlert(site.Recipients, "dns", site.Server, sErr)
 						if dErr != nil {
 							zLog.Error("alert",
-								zap.String("server", site.Server),
+								zap.String("uri", site.Server),
 								zap.String("error", dErr.Error()))
 						}
 					}
@@ -186,7 +187,7 @@ func (m *Monitor) processSites() {
 				dErr := m.sendGmailAlert(site.Recipients, site.Protocol, site.Server, err)
 				if dErr != nil {
 					zLog.Error("alert",
-						zap.String("server", site.Server),
+						zap.String("uri", site.Server),
 						zap.String("error", dErr.Error()))
 				}
 			}
